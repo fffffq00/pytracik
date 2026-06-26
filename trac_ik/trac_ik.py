@@ -164,19 +164,41 @@ class TracIK(object):
         pytracik.set_joint_limits(self._ik_solver, lower_bounds, upper_bounds)
 
     def ik(self,
-           tgt_pos: np.ndarray,
-           tgt_rot: np.ndarray,
-           seed_jnt_values: np.ndarray) -> None or np.ndarray:
+       tgt_pos: np.ndarray,
+       tgt_rot: np.ndarray,
+       seed_jnt_values: np.ndarray,
+       pos_bounds: np.ndarray = None,
+       rot_bounds: np.ndarray = None) -> None or np.ndarray:
         """
         Solve the IK.
         :param tgt_pos: 1x3 target position
         :param tgt_rot: 3x3 target rotation matrix
         :param seed_jnt_values: 1xN seed joint values
+        :param pos_bounds: 1x3 position tolerances [bx, by, bz]. Default is strictly 0.0.
+        :param rot_bounds: 1x3 rotation tolerances [brx, bry, brz]. Default is strictly 0.0.
         :return: None if no solution is found, otherwise 1xN joint values
         """
 
+        # 1. 默认值兜底策略：如果不传，默认误差为 0.0 (向下兼容老代码)
+        if pos_bounds is None:
+            pos_bounds = np.zeros(3)
+        if rot_bounds is None:
+            rot_bounds = np.zeros(3)
+
+        # 2. 四元数转换 (保持你原来的代码不变)
         qw, qx, qy, qz = quaternion_from_matrix(tgt_rot)
-        r = pytracik.ik(self._ik_solver, seed_jnt_values, tgt_pos[0], tgt_pos[1], tgt_pos[2], qx, qy, qz, qw)
+        
+        # 3. 将解包后的 15 个参数打入底层的 C++ Pybind11 接口
+        r = pytracik.ik(
+            self._ik_solver, 
+            seed_jnt_values, 
+            tgt_pos[0], tgt_pos[1], tgt_pos[2], 
+            qx, qy, qz, qw,
+            pos_bounds[0], pos_bounds[1], pos_bounds[2],
+            rot_bounds[0], rot_bounds[1], rot_bounds[2]
+        )
+        
+        # 4. 结果判定 (保持你原来的代码不变)
         succ = r[0] >= 0
         if succ:
             return r[1:]
